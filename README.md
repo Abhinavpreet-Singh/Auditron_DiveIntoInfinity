@@ -1,135 +1,193 @@
-# GenAI-Lawgic
+# *Auditron* 🤖
 
-A FastAPI-powered legal document simplifier and chatbot. Upload legal PDFs,
-process them, and ask questions for instant, plain-language answers.
+<div align="center">
 
-## Features
+![Auditron Logo](frontend/public/logo192.png)
 
-- Upload and process legal PDF documents
-- Ask questions and get simplified answers
-- Modern React frontend with responsive design
-- Advanced clause analysis and risk assessment
-- Real-time document processing progress
+AI-Powered Document Analysis & Compliance Intelligence Platform
 
-## Architecture
+## 📌 *Overview*
 
-- **Backend**: FastAPI server (Python) - handles PDF processing, AI analysis,
-  and API endpoints
-- **Frontend**: React application - modern UI for document upload, viewing, and
-  chat interface
-- **Database**: FAISS vector store for document embeddings
-- **AI**: Google Gemini for document analysis and question answering
+Auditron is a smart compliance platform designed to **simplify insurance and
+policy review** while ensuring *regulatory alignment*. It leverages advanced
+AI to analyze documents, extract insights, and ensure compliance across multiple
+regulatory frameworks.
 
-## Getting Started
+### 🎯 *Core Modules*
 
-### 1. Install Python dependencies
+1. *Document Analyser* → Upload & interact with documents (Q&A, summaries,
+   clause extraction)
+2. *Compliance Agent* → Evaluate documents for risks, gaps, and compliance
+   benchmarking
 
-```bash
-pip install -r requirements.txt
-```
+## 🌟 *Key Features*
 
-### 2. Set up environment variables
+### 📂 Document Analyser
 
-Create a `.env` file and add your Google API key:
+- *Smart Upload* - Support for PDFs, contracts, and compliance documents
+- *Clause Extraction* - Automated identification of key sections (coverage,
+  exclusions, claims)
+- *Interactive Chat* - Natural language Q&A with your documents
+- *Smart Summaries* - AI-generated document overviews for quick review
+- *Instant Search* - Quick clause and term lookups across documents
 
-```env
-GOOGLE_API_KEY=your_google_api_key_here
-```
+### 🛡 Compliance Agent
 
-### 3. Start the FastAPI backend server
+- *Risk Detection* - Automated identification of compliance issues and risks
+- *Framework Alignment* - Benchmarking against IRDAI, HIPAA, GDPR, ISO, SOC 2
+- *Gap Analysis* - Detection of missing or outdated clauses
+- *Compliance Scoring* - Quantitative assessment with detailed reports
+- *Visual Analytics* - Interactive charts and graphs for risk visualization
+- *Financial Impact* - Risk quantification and exposure assessment
 
-```bash
-uvicorn main:app --reload
-```
+## ⚙ *Technology Stack*
 
-The backend will be available at `http://localhost:8000`
+### Frontend
 
-### 4. Install and run the React frontend
+- React 18.x with TypeScript
+- TailwindCSS for styling
+- Framer Motion animations
+- React Query for data fetching
 
-In a new terminal, navigate to the frontend directory:
+### Backend
 
-```bash
-cd frontend
-npm install
-npm start
-```
+- FastAPI (Python)
+- Node.js / Express
+- JWT Authentication
+- MongoDB
 
-The frontend will be available at `http://localhost:3000`
+### AI/ML
 
-### 5. Access the application
+- Custom NLP Models
+- Transformer Architecture
+- PyTorch
+- Sentence Transformers
 
-Open your browser and go to:
+### DevOps
 
-- **React Frontend**: `http://localhost:3000` (recommended)
-- **Legacy HTML Interface**: `http://localhost:8000` (fallback)
+- GitHub Actions
+- Docker
+- Vercel Deployment
+- MongoDB Atlas
 
-## Usage
+## 🚀 *Getting Started*
 
-1. **Upload Document**: Use the sidebar to select and upload a PDF document
-2. **Process**: Click "Process Documents" and wait for completion
-3. **Analyze**: View extracted clauses categorized by risk level
-4. **Chat**: Ask questions about your document in the chat interface
-5. **Navigate**: Click page references to jump to specific sections in the PDF
-   viewer
+### Prerequisites
 
-## Development
+- Node.js >= 18.x
+- Python >= 3.10
+- MongoDB >= 6.0
+- npm or yarn
 
-### Backend Development
+### Installation
 
-- FastAPI server with auto-reload: `uvicorn main:app --reload`
-- API documentation: `http://localhost:8000/docs`
+1. *Clone the repository*
 
-### Frontend Development
+   bash
+   git clone https://github.com/Abhinavpreet-Singh/Auditron.git
+   cd Auditron
+   
 
-- React development server: `npm start` (in frontend directory)
-- Hot reload enabled for development
-- Tailwind CSS for styling
+2. *Setup Frontend*
 
-### Project Structure
+   bash
+   cd frontend
+   npm install
+   npm start
+   
 
-```
-├── main.py                 # FastAPI backend
-├── requirements.txt        # Python dependencies
-├── static/                 # Legacy HTML interface
-├── uploads/               # Uploaded PDF storage
-├── faiss_index/          # Vector database
-└── frontend/             # React application
-    ├── src/
-    │   ├── components/   # React components
-    │   ├── services/     # API service layer
-    │   └── App.js       # Main application
-    └── package.json     # Node.js dependencies
-```
+   Frontend will be available at http://localhost:3000
 
-## API Endpoints
+3. *Setup Backend*
 
-- `POST /upload-pdf/` - Upload and process PDF documents
-- `GET /progress/` - Check processing progress
-- `POST /ask-question/` - Ask questions about uploaded documents
-- `GET /clauses/` - Retrieve analyzed clauses with filters
-- `GET /metadata/` - Get document metadata
+   bash
+   cd api
+   pip install -r requirements.txt
+   uvicorn main:app --reload
+   
 
-## Deployment
+   API will be available at http://localhost:8000
 
-### Backend Deployment
+4. *Environment Variables* Create .env files in both frontend and api
+   directories
 
-- Deploy FastAPI on platforms like Railway, Render, Heroku, or any cloud VM
-- Set environment variables in your deployment platform
-- Use `python main.py` for production (not uvicorn with reload)
+## 🖥 *Dashboard Features*
 
-### Frontend Deployment
+### Navigation Structure
 
-- Build React app: `npm run build` (in frontend directory)
-- Deploy built files to any static hosting service (Netlify, Vercel, etc.)
-- Update API base URL in `src/services/api.js` for production
+- *📱 Sidebar*
 
-### Environment Variables
+  - Home → Analytics overview & quick stats
+  - Chat → Document interaction & Q&A
+  - Insights → Compliance dashboards & reports
+  - Settings → System configuration
 
-- `GOOGLE_API_KEY`: Required for AI document analysis
-- `PORT`: Optional, defaults to 8000 for backend
+- *👤 User Profile*
+  - Account Management
+  - Preferences
+  - Activity History
+  - API Keys
 
-## License
+## 👨‍💻 *Development Team*
 
-MIT
+- *Abhinavpreet Singh Arora*
 
-# AI-Sprint-2.0
+  - Role: Frontend Development & DevOps
+
+- *Dhruv Kumar Aggarwal*
+
+  - Role: Document Analyser Model
+  - Focus: NLP & Document Processing
+
+- *Pratham Mittal*
+
+  - Role: Backend Development
+  - Focus: API Architecture & Database
+
+- *Akshat*
+  - Role: Compliance Agent Model
+  - Focus: Risk Analysis & Compliance
+
+## 🔮 *Future Roadmap*
+
+### Q4 2025
+
+- Multi-document comparison engine
+- Advanced financial risk modeling
+- API integration framework
+
+### Q1 2026
+
+- Enterprise SSO integration
+- Automated compliance reporting
+- Real-time policy monitoring
+
+### Q2 2026
+
+- AI-powered policy drafting
+- Cross-border compliance tools
+
+## 📄 *License*
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
+for details.
+
+## 🤝 *Contributing*
+
+We welcome contributions! Please read our [Contributing Guide](CONTRIBUTING.md)
+for details on our code of conduct and the process for submitting pull requests.
+
+## 📞 *Support*
+
+- Email: support@auditron.ai
+- Documentation: [docs.auditron.ai](https://docs.auditron.ai)
+- Discord: [Join our community](https://discord.gg/auditron)
+
+---
+
+<div align="center">
+
+
+[Website](https://auditron360.vercel.app)
+
+</div>
