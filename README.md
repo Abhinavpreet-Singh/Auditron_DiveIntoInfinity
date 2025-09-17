@@ -2,8 +2,6 @@
 
 <div align="center">
 
-![Auditron Logo](frontend/public/logo192.png)
-
 AI-Powered Document Analysis & Compliance Intelligence Platform
 
 ## 📌 *Overview*
