@@ -656,7 +656,7 @@ async def health_check():
     }
 
 @app.post("/api/v1/users/register")
-async def register_user(email: str = Form(...), pdf: UploadFile = None, background_tasks: BackgroundTasks = None):
+async def register_user(email: str = Form(...), pdf: UploadFile = None):
     """Register user with email and PDF file"""
     
     # Validate email
@@ -672,9 +672,6 @@ async def register_user(email: str = Form(...), pdf: UploadFile = None, backgrou
             raise HTTPException(status_code=400, detail=f"File size exceeds {Config.MAX_FILE_SIZE_MB}MB limit")
     
     try:
-        # Check rate limits
-        await app_state.check_rate_limits()
-        
         result = {
             "success": True,
             "message": "User registered successfully",
@@ -683,49 +680,24 @@ async def register_user(email: str = Form(...), pdf: UploadFile = None, backgrou
             }
         }
         
-        # If PDF is provided, process it like the upload endpoint
-        if pdf and background_tasks:
-            # Generate task ID for processing
-            task_id = str(uuid.uuid4())
-            app_state.progress_data[task_id] = {
-                "status": "processing",
-                "progress": 5,
-                "message": "Processing PDF for registered user..."
-            }
+        # If PDF is provided, just save it without processing
+        if pdf:
+            # Generate unique filename
+            file_id = str(uuid.uuid4())
+            upload_path = os.path.join(Config.UPLOADS_DIR, f"{file_id}.pdf")
             
             # Save PDF file
-            upload_path = os.path.join(Config.UPLOADS_DIR, f"{task_id}.pdf")
-            
             if hasattr(pdf.file, 'seek'):
                 pdf.file.seek(0)
             
             with open(upload_path, "wb") as out_file:
                 shutil.copyfileobj(pdf.file, out_file)
-            
-            if hasattr(pdf.file, 'seek'):
-                pdf.file.seek(0)
                 
             logger.info(f"Registration PDF saved to {upload_path}")
             
-            # Process PDF like in upload endpoint
-            pdf.file._task_id = task_id
-            pages = get_pdf_pages(pdf)
-            metadata = extract_metadata(upload_path, pages)
-            
-            app_state.task_store[task_id] = {
-                "pdf_path": upload_path,
-                "pages": pages,
-                "metadata": metadata
-            }
-
-            chunks, metadatas = get_text_chunks_with_pages(pages, task_id)
-            background_tasks.add_task(get_vector_store, chunks, task_id, metadatas)
-            
             result.update({
-                "task_id": task_id,
-                "pdf_url": f"/uploads/{task_id}.pdf",
-                "metadata": metadata,
-                "message": "User registered and PDF processing started"
+                "pdf_url": f"/uploads/{file_id}.pdf",
+                "message": "User registered with PDF file"
             })
         
         logger.info(f"User registration successful: email={email}, has_pdf={pdf is not None}")
@@ -733,14 +705,6 @@ async def register_user(email: str = Form(...), pdf: UploadFile = None, backgrou
         
     except Exception as e:
         logger.error(f"Registration failed: {e}")
-        if pdf:
-            # If we have a task_id and an error, update progress
-            if 'task_id' in locals():
-                app_state.progress_data[task_id] = {
-                    "status": "error",
-                    "progress": 0,
-                    "message": f"Registration failed: {str(e)}"
-                }
         raise HTTPException(status_code=500, detail=f"Registration failed: {str(e)}")
 
 if __name__ == "__main__":
