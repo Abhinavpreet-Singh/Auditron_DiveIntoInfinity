@@ -118,6 +118,38 @@ export const apiService = {
       );
     }
   },
+
+  // Register user with email and PDF
+  registerUser: async (email, pdfFile) => {
+    if (!email?.trim()) {
+      throw new Error("Email is required");
+    }
+
+    const formData = new FormData();
+    formData.append("email", email.trim());
+    
+    if (pdfFile) {
+      // Validate file size
+      const maxSize = 50 * 1024 * 1024; // 50MB
+      if (pdfFile.size > maxSize) {
+        throw new Error("File size must be less than 50MB");
+      }
+
+      // Validate file type
+      if (!pdfFile.type.includes("pdf")) {
+        throw new Error("Only PDF files are supported");
+      }
+
+      formData.append("pdf", pdfFile);
+    }
+
+    const response = await api.post("/api/v1/users/register", formData, {
+      headers: {
+        "Content-Type": "multipart/form-data",
+      },
+    });
+    return response.data;
+  },
 };
 
 export default apiService;

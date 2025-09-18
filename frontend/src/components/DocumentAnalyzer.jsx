@@ -39,7 +39,7 @@ function DocumentAnalyzer() {
     setChatHistory([
       {
         role: "bot",
-        text: `Hello! I'm your legal document analysis assistant. Upload a PDF document to get started, then ask me questions about:
+        text: `Hello! I'm your legal document analysis assistant. I'll register you and process your PDF document using your email from localStorage. Upload a PDF to get started, then ask me questions about:
 
 • Compliance requirements and gaps
 • Risk assessment and mitigation  
@@ -88,27 +88,52 @@ I'm powered by advanced AI with rate limiting to ensure quality responses.`,
   const handleFileUpload = async (file) => {
     try {
       setIsUploading(true);
-      setUploadStatus("⏳ Uploading...");
+      setUploadStatus("⏳ Registering user...");
       setProgress(0);
 
-      const data = await apiService.uploadPDF(file);
+      // Get email from localStorage
+      let email = null;
+      
+      // Check different possible localStorage keys for email
+      try {
+        const currentUser = JSON.parse(localStorage.getItem('currentUser') || '{}');
+        const userData = JSON.parse(localStorage.getItem('userData') || '{}');
+        const user = JSON.parse(localStorage.getItem('user') || '{}');
+        
+        email = currentUser.email || userData.email || user.email || null;
+      } catch (e) {
+        console.error('Error reading from localStorage:', e);
+      }
 
-      setCurrentPdfUrl(
-        data.pdf_url ? `http://localhost:8000${data.pdf_url}` : ""
-      );
-      setUploadStatus(data.status || "✅ Uploaded!");
+      if (!email) {
+        throw new Error('Email not found in localStorage. Please log in first.');
+      }
+
+      console.log('Found email in localStorage:', email);
+      setUploadStatus("⏳ Registering with email and PDF...");
+
+      const data = await apiService.registerUser(email, file);
+
+      if (data.pdf_url) {
+        setCurrentPdfUrl(`http://localhost:8000${data.pdf_url}`);
+      }
+      
+      setUploadStatus(data.message || "✅ Registration complete!");
 
       if (data.metadata) {
         setMetadata(data.metadata);
       }
 
-      if (data.rate_limit_info) {
-        setUsageStats(data.rate_limit_info.daily_usage);
+      // If we have a task_id, poll for progress (for PDF processing)
+      if (data.task_id) {
+        pollProgress(data.task_id);
+      } else {
+        // No PDF processing needed, mark as ready
+        setIsUploading(false);
+        showNotificationMessage("Registration successful!", "success");
       }
-
-      pollProgress(data.task_id);
     } catch (error) {
-      setUploadStatus("❌ Upload failed: " + error.message);
+      setUploadStatus("❌ Registration failed: " + error.message);
       setIsUploading(false);
       showNotificationMessage(error.message, "error");
     }
@@ -442,19 +467,19 @@ I'm powered by advanced AI with rate limiting to ensure quality responses.`,
                     <span className="bg-[#251c1a] text-[#f3eee5] rounded-full w-4 h-4 flex items-center justify-center text-xs font-bold mr-2 mt-0.5 flex-shrink-0">
                       1
                     </span>
-                    <div>Upload PDF</div>
+                    <div>Register & Upload PDF</div>
                   </div>
                   <div className="flex items-start">
                     <span className="bg-[#251c1a] text-[#f3eee5] rounded-full w-4 h-4 flex items-center justify-center text-xs font-bold mr-2 mt-0.5 flex-shrink-0">
                       2
                     </span>
-                    <div>Review document</div>
+                    <div>AI processes document</div>
                   </div>
                   <div className="flex items-start">
                     <span className="bg-[#251c1a] text-[#f3eee5] rounded-full w-4 h-4 flex items-center justify-center text-xs font-bold mr-2 mt-0.5 flex-shrink-0">
                       3
                     </span>
-                    <div>Ask AI questions</div>
+                    <div>Ask legal questions</div>
                   </div>
                 </div>
               </div>
@@ -515,11 +540,10 @@ I'm powered by advanced AI with rate limiting to ensure quality responses.`,
                 <div className="text-center p-6">
                   <div className="text-6xl mb-4 opacity-50">📄</div>
                   <div className="text-xl font-bold text-[#251c1a] mb-2">
-                    Upload Your Document
+                    Register & Upload Document
                   </div>
                   <div className="text-sm text-[#251c1a]/60 mb-6 max-w-sm">
-                    Select a PDF document to start your AI-powered legal
-                    analysis
+                    Upload a PDF to register with your email from localStorage and start legal analysis
                   </div>
 
                   {/* Central Upload Button */}
@@ -529,7 +553,7 @@ I'm powered by advanced AI with rate limiting to ensure quality responses.`,
                     className="bg-[#251c1a] text-[#f3eee5] px-6 py-3 rounded-xl hover:bg-[#3a2d2a] transition-colors disabled:opacity-50 flex items-center mx-auto font-medium shadow-lg"
                   >
                     <FaFileUpload className="mr-2" />
-                    {isUploading ? "Uploading..." : "Select PDF File"}
+                    {isUploading ? "Registering..." : "Register & Upload PDF"}
                   </button>
 
                   {/* Upload Status */}
