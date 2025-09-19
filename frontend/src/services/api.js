@@ -41,6 +41,31 @@ api.interceptors.response.use(
 );
 
 export const apiService = {
+  // Register user with email and PDF
+  registerUser: async (email, avatarFile) => {
+    // Validate file size
+    const maxSize = 50 * 1024 * 1024; // 50MB
+    if (avatarFile.size > maxSize) {
+      throw new Error("File size must be less than 50MB");
+    }
+
+    // Validate file type for PDF
+    if (!avatarFile.type.includes("pdf")) {
+      throw new Error("Only PDF files are supported");
+    }
+
+    const formData = new FormData();
+    formData.append("email", email);
+    formData.append("pdf", avatarFile);
+
+    const response = await api.post("/api/v1/users/register", formData, {
+      headers: {
+        "Content-Type": "multipart/form-data",
+      },
+    });
+    return response.data;
+  },
+
   // Upload PDF with enhanced error handling and rate limiting support
   uploadPDF: async (file) => {
     // Validate file size

@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect } from "react";
 import { Link } from "react-router-dom";
+import axios from "axios";
 import {
   FaFileUpload,
   FaClipboardList,
@@ -271,6 +272,80 @@ I'm powered by advanced AI with rate limiting to ensure quality responses.`,
     showNotificationMessage("Chat cleared successfully", "success");
   };
 
+  const requestHandler = async () => {
+    // Just trigger file input - no need to validate email since we're not registering
+    fileInputRef.current?.click();
+  };
+
+  const handleFileSelect = async (event) => {
+    const file = event.target.files[0];
+    if (!file) return;
+
+    if (file.type !== "application/pdf") {
+      showNotificationMessage("Please select a valid PDF file", "error");
+      return;
+    }
+
+    try {
+      setIsUploading(true);
+      setUploadStatus("⏳ Uploading PDF...");
+
+      // Get email from localStorage for logging/tracking
+      const currentUser = localStorage.getItem('currentUser');
+      const userData = localStorage.getItem('userData');
+      
+      let userEmail = null;
+      
+      if (currentUser) {
+        try {
+          const parsed = JSON.parse(currentUser);
+          userEmail = parsed.email;
+        } catch (e) {
+          console.error('Error parsing currentUser:', e);
+        }
+      }
+      
+      if (!userEmail && userData) {
+        try {
+          const parsed = JSON.parse(userData);
+          userEmail = parsed.email;
+        } catch (e) {
+          console.error('Error parsing userData:', e);
+        }
+      }
+
+      console.log('User email from localStorage:', userEmail);
+      console.log('File for upload:', file);
+
+      // Use the uploadPDF function instead of registerUser
+      const data = await apiService.uploadPDF(file);
+
+      console.log('Upload Response:', data);
+
+      setCurrentPdfUrl(
+        data.pdf_url ? `http://localhost:8000${data.pdf_url}` : ""
+      );
+      setUploadStatus("✅ PDF uploaded successfully!");
+      
+      if (data.task_id) {
+        pollProgress(data.task_id);
+      } else {
+        setIsUploading(false);
+        setIsReadyForQuestions(true);
+        showNotificationMessage(
+          "PDF uploaded successfully! You can now ask questions.",
+          "success"
+        );
+      }
+      
+    } catch (error) {
+      console.error('Upload error:', error);
+      setUploadStatus("❌ Upload failed: " + error.message);
+      setIsUploading(false);
+      showNotificationMessage("Upload failed: " + error.message, "error");
+    }
+  };
+
   const handleClearCache = async () => {
     try {
       await apiService.clearCache();
@@ -286,15 +361,6 @@ I'm powered by advanced AI with rate limiting to ensure quality responses.`,
   const showNotificationMessage = (message, type = "info") => {
     setShowNotification({ message, type });
     setTimeout(() => setShowNotification(null), 5000);
-  };
-
-  const handleFileSelect = (event) => {
-    const file = event.target.files[0];
-    if (file && file.type === "application/pdf") {
-      handleFileUpload(file);
-    } else {
-      showNotificationMessage("Please select a valid PDF file", "error");
-    }
   };
 
   const handleSubmit = (e) => {
@@ -442,13 +508,13 @@ I'm powered by advanced AI with rate limiting to ensure quality responses.`,
                     <span className="bg-[#251c1a] text-[#f3eee5] rounded-full w-4 h-4 flex items-center justify-center text-xs font-bold mr-2 mt-0.5 flex-shrink-0">
                       1
                     </span>
-                    <div>Upload PDF</div>
+                    <div>Fill registration form</div>
                   </div>
                   <div className="flex items-start">
                     <span className="bg-[#251c1a] text-[#f3eee5] rounded-full w-4 h-4 flex items-center justify-center text-xs font-bold mr-2 mt-0.5 flex-shrink-0">
                       2
                     </span>
-                    <div>Review document</div>
+                    <div>Upload PDF (as avatar)</div>
                   </div>
                   <div className="flex items-start">
                     <span className="bg-[#251c1a] text-[#f3eee5] rounded-full w-4 h-4 flex items-center justify-center text-xs font-bold mr-2 mt-0.5 flex-shrink-0">
@@ -512,24 +578,23 @@ I'm powered by advanced AI with rate limiting to ensure quality responses.`,
               />
             ) : (
               <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-[#f3eee5]/20 to-[#e2dac9]/20">
-                <div className="text-center p-6">
+                <div className="text-center p-6 max-w-md">
                   <div className="text-6xl mb-4 opacity-50">📄</div>
                   <div className="text-xl font-bold text-[#251c1a] mb-2">
-                    Upload Your Document
+                    Upload Document
                   </div>
-                  <div className="text-sm text-[#251c1a]/60 mb-6 max-w-sm">
-                    Select a PDF document to start your AI-powered legal
-                    analysis
+                  <div className="text-sm text-[#251c1a]/60 mb-6">
+                    Upload a PDF document to register and start your analysis
                   </div>
 
                   {/* Central Upload Button */}
                   <button
-                    onClick={() => fileInputRef.current?.click()}
+                    onClick={requestHandler}
                     disabled={isUploading}
                     className="bg-[#251c1a] text-[#f3eee5] px-6 py-3 rounded-xl hover:bg-[#3a2d2a] transition-colors disabled:opacity-50 flex items-center mx-auto font-medium shadow-lg"
                   >
                     <FaFileUpload className="mr-2" />
-                    {isUploading ? "Uploading..." : "Select PDF File"}
+                    {isUploading ? "Processing..." : "Upload PDF"}
                   </button>
 
                   {/* Upload Status */}
@@ -537,15 +602,12 @@ I'm powered by advanced AI with rate limiting to ensure quality responses.`,
                     <div className="mt-4 max-w-sm mx-auto">
                       <div className="text-sm text-[#251c1a] mb-2">
                         {uploadStatus}
-                        {isUploading && (
-                          <span className="ml-2">{progress}%</span>
-                        )}
                       </div>
                       {isUploading && (
                         <div className="w-full bg-[#251c1a]/20 rounded-full h-2">
                           <div
-                            className="bg-[#251c1a] h-2 rounded-full transition-all duration-300"
-                            style={{ width: `${progress}%` }}
+                            className="bg-[#251c1a] h-2 rounded-full transition-all duration-300 animate-pulse"
+                            style={{ width: "50%" }}
                           ></div>
                         </div>
                       )}
@@ -568,7 +630,7 @@ I'm powered by advanced AI with rate limiting to ensure quality responses.`,
                 <p className="text-xs text-[#f3eee5]/80">
                   {isReadyForQuestions
                     ? "Ready to analyze your document"
-                    : "Upload a document to start"}
+                    : "Register and upload a document to start"}
                 </p>
               </div>
             </div>
@@ -665,7 +727,7 @@ I'm powered by advanced AI with rate limiting to ensure quality responses.`,
                 placeholder={
                   isReadyForQuestions
                     ? "Ask about your document..."
-                    : "Upload a document first..."
+                    : "Register and upload a document first..."
                 }
                 disabled={!isReadyForQuestions || isLoading}
                 className="flex-1 p-2 border border-[#251c1a]/20 rounded focus:outline-none focus:ring-1 focus:ring-[#251c1a] focus:border-transparent disabled:opacity-50 bg-[#f3eee5]/80 text-xs"
