@@ -35,6 +35,12 @@ logger = logging.getLogger(__name__)
 
 load_dotenv()
 
+
+GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
+if not GOOGLE_API_KEY:
+    raise ValueError("❌ GOOGLE_API_KEY not found in environment variables")
+
+
 # -------------------------
 # Rate Limiting Classes
 # -------------------------
@@ -117,7 +123,7 @@ class Config:
     SIMILARITY_THRESHOLD = 1.2  # More restrictive
     MAX_WORKERS = 2  # Reduced workers
     EMBEDDINGS_MODEL = "sentence-transformers/all-MiniLM-L6-v2"
-    LLM_MODEL = "gemini-1.5-flash"  # Use Flash model for cost efficiency
+    LLM_MODEL = "gemini-2.5-flash"  # Use Flash model for cost efficiency
     LLM_TEMPERATURE = 0.2  # Lower temperature for consistency
     LLM_MAX_TOKENS = 1000  # Reduced token limit
     PROGRESS_UPDATE_INTERVAL = 20
@@ -235,55 +241,39 @@ class AppState:
         self.last_api_call = time.time()
         return True
 
-def get_conversational_chain():
-    """Build simplification chain (always answer)"""
-    prompt_template = """
-You are a Compliance Review Agent specializing in Insurance Contracts. 
-Your role is to help legal, compliance, and underwriting teams analyze insurance contracts, policies, and regulatory filings efficiently and accurately.
+    def get_conversational_chain(self):
+        """Get or create conversational chain with optimized settings"""
+        if self.conversational_chain is None:
+            self.conversational_chain = self._create_conversational_chain()
+        return self.conversational_chain
 
-Guidelines:
-- If the context contains relevant information, ground your answer in it with clear references.
-- If the context does not fully answer the question, still provide a helpful, well-reasoned answer using your general knowledge.
-- Always explain your reasoning clearly and concisely.
-- Provide structured insights whenever possible (clause summary, risks, compliance mapping, etc.).
+    def _create_conversational_chain(self):
+        """Create enhanced conversational chain with cost optimization"""
+        # Shorter, more focused prompt to reduce token usage
+        prompt_template = """
+You are Lawgic AI, a legal assistant. 
+Use the provided context to answer. 
+If the context does not contain the answer, clearly say: 
+"I could not find this in the document, but here’s a general insight."
 
 Context:
 {context}
 
-Question:
-{question}
-
-Answer:
-"""
-
-    model = ChatGoogleGenerativeAI(model="gemini-2.5-pro", temperature=0.5, max_tokens=1000, google_api_key=os.getenv("GEMINI_API_KEY"))
-    prompt = PromptTemplate(
-        template=prompt_template, input_variables=["context", "question"]
-    )
-    return load_qa_chain(model, chain_type="stuff", prompt=prompt)
-
-def _create_conversational_chain(self):
-        """Create enhanced conversational chain with cost optimization"""
-        # Shorter, more focused prompt to reduce token usage
-        prompt_template = """
-You are Lawgic AI, a legal document analyst. Provide clear, concise answers based on the context.
-
-Context: {context}
-
 Question: {question}
 
-Response (be concise and specific):
+Answer diplomatically:
 """
 
         try:
             model = ChatGoogleGenerativeAI(
-                model=Config.LLM_MODEL,
-                temperature=Config.LLM_TEMPERATURE,
-                max_output_tokens=Config.LLM_MAX_TOKENS,
-                # Add additional cost-optimization parameters
-                top_p=0.8,
-                top_k=20
-            )
+    model=Config.LLM_MODEL,
+    temperature=Config.LLM_TEMPERATURE,
+    max_output_tokens=Config.LLM_MAX_TOKENS,
+    google_api_key=GOOGLE_API_KEY,
+    top_p=0.8,
+    top_k=20
+)
+
             prompt = PromptTemplate(
                 template=prompt_template, 
                 input_variables=["context", "question"]
@@ -439,7 +429,7 @@ def get_vector_store(text_chunks: List[str], task_id: str, metadatas: Optional[L
         if metadatas:
             vector_store = FAISS.from_texts(
                 text_chunks,
-                embedding=embeddings,
+                embedding=embeddings, 
                 metadatas=metadatas
             )
         else:
@@ -594,38 +584,97 @@ async def get_progress(task_id: str):
 
 @app.post("/ask-question/")
 async def ask_question(question: str = Form(...)):
-    """Answer user query using FAISS + general fallback"""
-    embeddings = HuggingFaceEmbeddings(model_name="sentence-transformers/all-MiniLM-L6-v2")
-    vector_store = FAISS.load_local(
-        "faiss_index", embeddings,
-        allow_dangerous_deserialization=True
-    )
+    """Rate-limited question answering with caching"""
+    
+    if not question or not question.strip():
+        raise HTTPException(status_code=400, detail="Question cannot be empty")
+    
+    # Check cache first
+    if Config.ENABLE_RESPONSE_CACHE:
+        cached_response = app_state.response_cache.get(question)
+        if cached_response:
+            return cached_response
+    
+    # Check rate limits
+    await app_state.check_rate_limits()
+    
+    try:
+        embeddings = app_state.embeddings_model
+        if embeddings is None:
+            embeddings = HuggingFaceEmbeddings(
+                model_name=Config.EMBEDDINGS_MODEL,
+                model_kwargs={'device': 'cpu'}
+            )
 
-    # Pull top docs (even if not very relevant)
-    retrieved_docs = vector_store.similarity_search_with_score(question, k=6)
-    docs = [doc for doc, _ in retrieved_docs]
+        if not os.path.exists(Config.FAISS_INDEX_DIR):
+            raise HTTPException(
+                status_code=404, 
+                detail="No document processed. Please upload a PDF first."
+            )
 
-    chain = get_conversational_chain()
-    response = chain(
-        {"input_documents": docs, "question": question},
-        return_only_outputs=True
-    )
+        vector_store = FAISS.load_local(
+            Config.FAISS_INDEX_DIR, 
+            embeddings,
+            allow_dangerous_deserialization=True
+        )
 
-    refs = []
-    for doc, score in retrieved_docs[:3]:
-        page = (doc.metadata or {}).get("page")
-        snippet = (doc.page_content or "").splitlines()[-1][:120]
-        if page:
-            refs.append({
-                "page": page,
-                "snippet": snippet,
-                "similarity": round(float(score), 4)
-            })
+        # More restrictive similarity search
+        retrieved_docs = vector_store.similarity_search_with_score(
+            question, 
+            k=Config.SIMILARITY_SEARCH_K
+        )
+        
+        docs = [doc for doc, score in retrieved_docs if score < Config.SIMILARITY_THRESHOLD]
+        
+        if not docs:
+            docs = [doc for doc, _ in retrieved_docs[:3]]  # Limit to top 3
 
-    return {
-        "answer": response["output_text"].strip(),
-        "references": refs
-    }
+        # Estimate tokens for tracking
+        estimated_input_tokens = len(question.split()) + sum(len((doc.page_content or "").split()) for doc in docs)
+        
+        chain = app_state.get_conversational_chain()
+        response = chain(
+            {"input_documents": docs, "question": question},
+            return_only_outputs=True
+        )
+
+        # Track API usage (estimate)
+        estimated_output_tokens = len(response["output_text"].split())
+        total_tokens = estimated_input_tokens + estimated_output_tokens
+        app_state.usage_tracker.track_usage(total_tokens)
+
+        refs = []
+        for doc, score in retrieved_docs[:3]:  # Limit references
+            page = (doc.metadata or {}).get("page")
+            content = doc.page_content or ""
+            snippet = content.replace(f"[Page {page}]\n", "").strip()[:120]
+            if page and snippet:
+                refs.append({
+                    "page": page,
+                    "snippet": snippet + "..." if len(snippet) >= 120 else snippet
+                })
+
+        result = {
+            "answer": response["output_text"].strip(),
+            "references": refs,
+            "tokens_used": total_tokens,
+            "cached": False
+        }
+        
+        # Cache the response
+        if Config.ENABLE_RESPONSE_CACHE:
+            app_state.response_cache.set(question, result)
+        
+        return result
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Question processing failed: {e}")
+        return JSONResponse(
+            {"error": f"Query failed: {str(e)}"}, 
+            status_code=500
+        )
 
 @app.get("/usage-stats/")
 async def get_usage_stats():
